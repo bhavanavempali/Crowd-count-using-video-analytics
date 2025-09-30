@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --sidebar-bg: linear-gradient(160deg, #7f53ac 0%, #647dee 100%);
+            --content-bg: #f0f2f5;
+            --primary-text: #ffffff;
+            --secondary-text: #d1c4e9;
+            --dark-text: #333;
+            --card-bg: #ffffff;
+            --accent-red: #e57373;
+            --accent-green: #81c784;
+            --accent-yellow: #fdd835;
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            --hover-bg: rgba(255, 255, 255, 0.15);
+            --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
+        body { font-family: var(--font); margin: 0; height: 100vh; overflow: hidden; background-color: var(--content-bg); }
+        .dashboard-container { display: flex; height: 100%; }
+        
+        #sidebar { width: 280px; background: var(--sidebar-bg); color: var(--primary-text); padding: 25px; display: flex; flex-direction: column; box-shadow: 5px 0 15px rgba(0,0,0,0.1); }
+        #sidebar h1 { margin: 0 0 5px 0; font-size: 1.8rem; }
+        #sidebar #welcome-message { color: var(--secondary-text); margin-bottom: 30px; }
+        .nav-menu { list-style: none; padding: 0; margin: 0; flex-grow: 1; overflow-y: auto; }
+        .nav-item>button { display: block; width: 100%; box-sizing: border-box; background: transparent; border: none; color: var(--primary-text); padding: 15px 10px; text-align: left; font-size: 1.1rem; cursor: pointer; border-radius: 8px; transition: background-color .2s; margin-bottom: 5px; position: relative; font-family: var(--font); }
+        .nav-item>button:hover, .nav-item>button.active { background-color: var(--hover-bg); }
+        
+        .menu-section { border-top: 1px solid var(--hover-bg); margin-top: 15px; padding-top: 15px; }
+        .menu-section h3 { font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; color: var(--secondary-text); padding: 0 10px; margin: 0 0 10px 0; }
+        .menu-item { list-style: none; padding-left: 15px; }
+        .menu-item button, .menu-item select, .menu-item input { width:100%; box-sizing:border-box; background:transparent; border:none; color:var(--secondary-text); padding:12px 10px; text-align:left; font-size:1rem; cursor:pointer; border-radius:6px; margin-bottom:5px; font-family: var(--font); }
+        .menu-item button:hover { background-color: var(--hover-bg); color: var(--primary-text); }
+        .menu-item select, .menu-item input { border:1px solid var(--secondary-text); color:var(--primary-text); background-color:rgba(0,0,0,0.2); }
+        
+        .form-container { display: none; padding:10px; border: 1px solid var(--hover-bg); margin-top: 10px; border-radius: 8px; }
+        .form-container input { margin-bottom: 10px; }
+        .form-container button { text-align: center; color: white; width: calc(50% - 5px); }
+        .form-container button:first-of-type { margin-right: 10px; }
+        #save-btn, #confirm-rename-btn { background-color:var(--accent-green); }
+        #cancel-save-btn, #cancel-rename-btn { background-color:var(--accent-red); }
+        #rename-btn { background-color: var(--accent-yellow); color: var(--dark-text) }
+        #track-ids-btn, #start-analysis-btn { background-color: #38b2ac; color: white; }
+        #rename-btn:disabled, #track-ids-btn:disabled, #start-analysis-btn:disabled { background-color: rgba(0,0,0,0.2); opacity: 0.5; cursor: not-allowed; color: var(--secondary-text) !important; }
+
+        #logout-btn { margin-top: 20px; background-color: #fff; color: #7f53ac; text-align: center; font-weight: 600; }
+
+        #content-area { flex-grow: 1; padding: 30px; display: flex; flex-direction:column; justify-content:center; align-items:center; overflow: auto; }
+        .view { display: none; width: 100%; height: 100%; }
+        .view.active { display: flex; }
+
+        #zone-management-view { flex-direction: column; }
+        #zm-initial-prompt { text-align:center; color:#7f8c8d; }
+        #upload-box { background: var(--card-bg); padding: 30px 40px; border-radius: 12px; box-shadow: var(--shadow); width: 400px; max-width: 90%; }
+        #choose-file-btn { padding: 12px 20px; border-radius: 8px; border: 1px solid #ccc; background-color: #eee; cursor: pointer; font-size: 1rem; }
+        #video-container-zm { width: 100%; max-height: 100%; position: relative; background: #000; border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); display:none; }
+        #video-player-zm { width: 100%; height: 100%; object-fit: contain; }
+        #zoneCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: default; }
+        .video-player-overlay { position: absolute; top: 0; left: 0; width:100%; height:100%; object-fit: contain; display:none;}
+
+        #live-analytics-view { flex-direction: row; gap: 30px; }
+        .video-panel { flex: 3; display: flex; flex-direction: column; min-width: 0; }
+        .analytics-panel { flex: 1; display: flex; flex-direction: column; gap: 20px; min-width: 300px; }
+        .video-container-live { width: 100%; aspect-ratio: 16/9; background: #2c2c2c; border-radius: 12px; box-shadow: var(--shadow); overflow: hidden; display:flex; justify-content:center; align-items:center; color: #888; }
+        .video-container-live img { width: 100%; height: 100%; object-fit: contain; }
+        .analytics-card { background: var(--card-bg); padding: 20px; border-radius: 12px; box-shadow: var(--shadow); }
+        .analytics-card h3 { margin-top: 0; font-size: 1.1rem; color: var(--dark-text); border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 15px; }
+        .analytics-card ul { list-style: none; padding: 0; margin: 0; max-height: 120px; overflow-y: auto; }
+        .analytics-card li { padding: 8px 0; color: #555; border-bottom: 1px solid #f5f5f5; font-size: 0.9rem; }
+        .analytics-card li:last-child { border-bottom: none; }
+        #zone-occupancy-list span { font-weight: bold; float: right; background-color: var(--content-bg); padding: 2px 8px; border-radius: 12px; color: #5a67d8; }
+        #alerts-list li { color: var(--accent-red); font-weight: bold; }
+        .chart-container { position: relative; height: 280px; width: 100%; }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <nav id="sidebar">
+            <h1>Crowd Counter</h1>
+            <p id="welcome-message">Hello, User</p>
+            <ul class="nav-menu">
+                <div id="main-controls">
+                    <li class="nav-item"><button id="zm-mode-btn" class="active">🛠️ Zone Management</button></li>
+                    <li class="nav-item"><button id="la-mode-btn" disabled>📊 Live Analytics</button></li>
+                </div>
+
+                <div id="zone-management-menu">
+                    <div class="menu-section">
+                        <h3>1. Video Source</h3>
+                        <ul class="menu-item">
+                            <li><button id="upload-zm-video-btn">📂 Upload Video</button></li>
+                            <li><button id="webcam-zm-btn">📷 Use Webcam</button></li>
+                            <li><button id="exit-webcam-btn" style="display:none;">⬅ Back</button></li>
+                        </ul>
+                    </div>
+                    <div class="menu-section">
+                        <h3>2. Zone Controls</h3>
+                        <ul class="menu-item">
+                            <li><button id="draw-btn">✏️ Draw Zone</button></li>
+                            <li class="form-container" id="save-zone-container">
+                                <input type="text" id="zone-label-input" placeholder="Enter Zone Name..."><button id="save-btn">Save</button><button id="cancel-save-btn">Cancel</button>
+                            </li>
+                            <li><button id="preview-btn">👁️ Preview Zones</button></li>
+                            <li><button id="track-ids-btn" disabled>🆔 Track IDs & Count</button></li>
+                            <li><select id="zone-select"><option value="">-- Select Zone --</option></select></li>
+                            <li><button id="rename-btn" disabled>✏️ Rename Zone</button></li>
+                            <li class="form-container" id="rename-zone-container">
+                                <input type="text" id="rename-label-input" placeholder="New Name..."><button id="confirm-rename-btn">Confirm</button><button id="cancel-rename-btn">Cancel</button>
+                            </li>
+                            <li><button id="delete-btn">🗑️ Delete Zone</button></li>
+                        </ul>
+                    </div>
+                </div>
+            </ul>
+            <input type="file" id="video-upload-input" hidden accept="video/*">
+            <button id="logout-btn" class="nav-item" type="button">Logout</button>
+        </nav>
+        
+        <main id="content-area">
+            <div id="zone-management-view" class="view active">
+                <div id="zm-initial-prompt">
+                    <div id="upload-box">
+                        <h3>Upload a Video for Zone Management</h3>
+                        <p>Select a video file to begin drawing and managing zones.</p>
+                        <button id="choose-file-btn">Choose File</button>
+                    </div>
+                </div>
+                <div id="video-container-zm">
+                    <video id="video-player-zm" playsinline></video>
+                    <canvas id="zoneCanvas"></canvas>
+                    <img id="tracking-overlay" class="video-player-overlay" src="">
+                </div>
+            </div>
+            <div id="live-analytics-view" class="view">
+                <div class="video-panel">
+                    <div class="video-container-live"><img id="analytics-video-feed" src="" alt="Go to Zone Management and upload a video to start."></div>
+                    <div class="analytics-card" style="margin-top:20px;"><h3>📈 Zone Population Over Time</h3><div class="chart-container"><canvas id="occupancyChart"></canvas></div></div>
+                    <div class="analytics-card" style="margin-top:20px;"><h3>🔥 Activity Heatmap</h3><div class="chart-container"><canvas id="heatmapChart"></canvas></div></div>
+                </div>
+                <div class="analytics-panel">
+                    <div class="analytics-card"><h3>📊 Zone Occupancy</h3><ul id="zone-occupancy-list"><li>No data yet...</li></ul></div>
+                    <div class="analytics-card"><h3>📰 Event Log</h3><ul id="event-log-list"><li>No events yet...</li></ul></div>
+                    <div class="analytics-card"><h3>🚨 Alerts</h3><ul id="alerts-list"><li>No alerts.</li></ul></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // --- GLOBAL STATE ---
+        let currentUsername = "";
+        let savedZones = [];
+        let isDrawingMode = false, isDrawing = false, startCoords = {}, currentCoords = {}, pendingZone = null;
+        let analyticsInterval;
+        let occupancyChart, heatmapChart; // Added heatmapChart
+        let currentFile = null;
+        
+        // --- DOM ELEMENT REFERENCES ---
+        const zmView = document.getElementById('zone-management-view');
+        const laView = document.getElementById('live-analytics-view');
+        const zmModeBtn = document.getElementById('zm-mode-btn');
+        const laModeBtn = document.getElementById('la-mode-btn');
+        const videoUploadInput = document.getElementById('video-upload-input');
+        const zoneCanvas = document.getElementById('zoneCanvas');
+        const videoPlayerZm = document.getElementById('video-player-zm');
+        const trackIdsBtn = document.getElementById('track-ids-btn');
+        const zmInitialPrompt = document.getElementById('zm-initial-prompt');
+        const zmVideoContainer = document.getElementById('video-container-zm');
+        const trackingOverlay = document.getElementById('tracking-overlay');
+
+        // --- APPLICATION INITIALIZATION ---
+        window.onload = () => {
+            currentUsername = new URLSearchParams(window.location.search).get("username");
+            if (currentUsername) {
+                document.getElementById('welcome-message').textContent = `Hello, ${currentUsername}`;
+                setupEventListeners();
+                initializeCharts(); // Changed to initialize both charts
+            } else { window.location.href = "/"; }
+        };
+
+        function setupEventListeners() {
+            zmModeBtn.addEventListener('click', () => switchMode('zm'));
+            laModeBtn.addEventListener('click', () => {
+                if(laModeBtn.disabled) return;
+                switchMode('la');
+                startAnalytics();
+            });
+            
+            document.getElementById('upload-zm-video-btn').addEventListener('click', () => videoUploadInput.click());
+            const webcamBtn = document.getElementById('webcam-zm-btn');
+            if (webcamBtn) {
+                webcamBtn.addEventListener('click', startWebcam);
+            }
+            const exitWebcamBtn = document.getElementById('exit-webcam-btn');
+            if (exitWebcamBtn) {
+                exitWebcamBtn.addEventListener('click', stopWebcam);
+            }
+            document.getElementById('choose-file-btn').addEventListener('click', () => videoUploadInput.click());
+            videoUploadInput.onchange = handleZmVideoUpload;
+            
+            trackIdsBtn.addEventListener('click', handleTrackIdsClick);
+
+            setupZoneManagementListeners();
+            document.getElementById('logout-btn').addEventListener('click', () => window.location.href = "/");
+        }
+        
+        function switchMode(mode) {
+            const isZm = mode === 'zm';
+            zmView.classList.toggle('active', isZm);
+            laView.classList.toggle('active', !isZm);
+            zmModeBtn.classList.toggle('active', isZm);
+            laModeBtn.classList.toggle('active', !isZm);
+            if (isZm) {
+                stopAnalytics();
+                trackingOverlay.style.display = 'none';
+                videoPlayerZm.style.opacity = 1;
+            }
+        }
+
+        // --- LIVE ANALYTICS & RELATED FUNCTIONS ---
+        function initializeCharts() {
+            const lineCtx = document.getElementById('occupancyChart').getContext('2d');
+            occupancyChart = new Chart(lineCtx, {
+                type: 'line', data: { labels: [], datasets: [] },
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, title: { display: true, text: 'People Count' } } } }
+            });
+            
+            const bubbleCtx = document.getElementById('heatmapChart').getContext('2d');
+            heatmapChart = new Chart(bubbleCtx, {
+                type: 'bubble', data: { datasets: [] },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { title: { display: true, text: 'Live Count (Activity)' } },
+                        x: { title: { display: true, text: 'Zone Occupancy (Density)' } }
+                    }
+                }
+            });
+        }
+        
+        async function handleZmVideoUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            currentFile = file;
+            zmInitialPrompt.style.display = 'none';
+            zmVideoContainer.style.display = 'block';
+
+            videoPlayerZm.src = URL.createObjectURL(file);
+            videoPlayerZm.play();
+            loadZonesFromServer('zm_video');
+            trackIdsBtn.disabled = false;
+            laModeBtn.disabled = false;
+        }
+        
+        async function startWebcam() {
+            try {
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    alert('Webcam not supported in this browser.');
+                    return;
+                }
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                currentFile = null;
+                zmInitialPrompt.style.display = 'none';
+                zmVideoContainer.style.display = 'block';
+                trackingOverlay.style.display = 'none';
+                videoPlayerZm.style.opacity = 1;
+                videoPlayerZm.srcObject = stream;
+                await videoPlayerZm.play();
+                loadZonesFromServer('webcam');
+                const exitWebcamBtn = document.getElementById('exit-webcam-btn');
+                if (exitWebcamBtn) exitWebcamBtn.style.display = 'block';
+            } catch (err) {
+                console.error('Failed to start webcam', err);
+                alert('Unable to access the webcam. Please check permissions and try again.');
+            }
+        }
+
+        function stopWebcam() {
+            try {
+                const mediaStream = videoPlayerZm.srcObject;
+                if (mediaStream && typeof mediaStream.getTracks === 'function') {
+                    mediaStream.getTracks().forEach(t => {
+                        try { t.stop(); } catch (_) {}
+                    });
+                }
+            } catch (e) { console.warn('Error stopping webcam tracks', e); }
+            videoPlayerZm.pause();
+            videoPlayerZm.srcObject = null;
+            trackingOverlay.style.display = 'none';
+            videoPlayerZm.style.opacity = 1;
+            zmVideoContainer.style.display = 'none';
+            zmInitialPrompt.style.display = 'block';
+            const exitWebcamBtn = document.getElementById('exit-webcam-btn');
+            if (exitWebcamBtn) exitWebcamBtn.style.display = 'none';
+        }
+        
+        async function handleTrackIdsClick() {
+            if (!currentFile) { alert("Please upload a video first."); return; }
+            alert("Uploading video to server for tracking. This may take a moment...");
+            
+            const success = await uploadVideoForProcessing();
+            if (success) {
+                alert("Upload complete. Starting person tracking on the current video.");
+                videoPlayerZm.style.opacity = 0;
+                trackingOverlay.style.display = 'block';
+                trackingOverlay.src = `/processed_video_feed?mode=tracking&t=${Date.now()}`;
+            }
+        }
+
+        async function uploadVideoForProcessing() {
+            if (!currentFile) return false;
+            const formData = new FormData();
+            formData.append('video', currentFile);
+            try {
+                const response = await fetch('/upload_video', { method: 'POST', body: formData });
+                if (!response.ok) throw new Error(`Server error: ${response.statusText}`);
+                const result = await response.json();
+                if (!result.success) {
+                    alert(`Background upload failed: ${result.message}`);
+                    return false;
+                }
+                return true;
+            } catch (error) {
+                alert("A critical error occurred during background upload. Analysis may not work.");
+                console.error("Background Upload Error:", error);
+                return false;
+            }
+        }
+        
+        async function startAnalytics() {
+            if(!currentFile) { alert("Please upload a video first in the Zone Management tab."); return; }
+            const feed = document.getElementById('analytics-video-feed');
+            feed.src = `/processed_video_feed?mode=analytics&t=${Date.now()}`;
+            if (analyticsInterval) clearInterval(analyticsInterval);
+            analyticsInterval = setInterval(fetchAnalyticsData, 1500);
+        }
+
+        function stopAnalytics() {
+            document.getElementById('analytics-video-feed').src = "";
+            if(analyticsInterval) clearInterval(analyticsInterval);
+        }
+        
+        async function fetchAnalyticsData() {
+            try {
+                const response = await fetch('/analytics_data');
+                const data = await response.json();
+                updateAnalyticsUI(data);
+            } catch (error) { console.error("Failed to fetch analytics data", error); }
+        }
+
+        function updateAnalyticsUI(data) {
+            const occupancyList = document.getElementById('zone-occupancy-list');
+            occupancyList.innerHTML = Object.keys(data.zone_occupancy).length > 0 ?
+                Object.entries(data.zone_occupancy).map(([zone, count]) => `<li>${zone}<span>${count}</span></li>`).join('') :
+                '<li>Waiting for data...</li>';
+            
+            updateLineChart(data.chart_data);
+            updateHeatmapChart(data.zone_occupancy); // NEW function call
+
+            const eventList = document.getElementById('event-log-list');
+            eventList.innerHTML = data.events.length > 0 ?
+                data.events.map(event => `<li>- ${event}</li>`).join('') :
+                '<li>No events yet...</li>';
+
+            const alertsList = document.getElementById('alerts-list');
+            alertsList.innerHTML = data.alerts.length > 0 ?
+                data.alerts.map(alertMsg => `<li>${alertMsg}</li>`).join('') :
+                '<li>No alerts.</li>';
+        }
+
+        function updateLineChart(chartData) {
+            occupancyChart.data.labels = Array.from({ length: 30 }, (_, i) => i - 29);
+            const colors = ['#7f53ac', '#647dee', '#fdd835', '#e57373', '#81c784'];
+            occupancyChart.data.datasets = Object.keys(chartData).map((zoneName, index) => ({
+                label: zoneName,
+                data: Array(30 - chartData[zoneName].length).fill(null).concat(chartData[zoneName]),
+                borderColor: colors[index % colors.length],
+                tension: 0.1, fill: false
+            }));
+            occupancyChart.update();
+        }
+
+        // --- NEW FUNCTION TO UPDATE THE BUBBLE CHART ---
+        function updateHeatmapChart(occupancyData) {
+            const colors = ['#7f53ac', '#647dee', '#fdd835', '#e57373', '#81c784'];
+            let colorIndex = 0;
+            heatmapChart.data.datasets = Object.entries(occupancyData).map(([zoneName, count]) => {
+                // The bubble chart shows density (x-axis) vs. activity (y-axis).
+                // We'll use the current count for both for a simple visualization.
+                // The size of the bubble (radius) will also be based on the count.
+                const dataset = {
+                    label: zoneName,
+                    data: [{
+                        x: count, // Occupancy
+                        y: count, // Activity
+                        r: count * 3 + 5 // Radius of bubble
+                    }],
+                    backgroundColor: colors[colorIndex % colors.length]
+                };
+                colorIndex++;
+                return dataset;
+            });
+            heatmapChart.update();
+        }
+
+        // --- ZONE MANAGEMENT FUNCTIONS (ALL CORRECTED) ---
+        function setupZoneManagementListeners() { /* Unchanged */ }
+        async function loadZonesFromServer(cameraId) { /* Unchanged */ }
+        async function savePendingZone() { /* Unchanged */ }
+        async function confirmRename() { /* Unchanged */ }
+        async function deleteSelectedZone() { /* Unchanged */ }
+        function updateZoneDropdown(selectedId) { /* Unchanged */ }
+        function redrawCanvas() { /* Unchanged */ }
+        function fitCanvasToVideo() { /* Unchanged */ }
+        function getPos(event) { /* Unchanged */ }
+        function toggleDrawingMode() { /* Unchanged */ }
+        function handleMouseDown(e) { /* Unchanged */ }
+        function handleMouseMove(e) { /* Unchanged */ }
+        function handleMouseUp(e) { /* Unchanged */ }
+        function cancelSave() { /* Unchanged */ }
+        function showRenameUI() { /* Unchanged */ }
+        function cancelRename() { /* Unchanged */ }
+
+        // --- All ZM helper and Analytics helper functions are collapsed here for readability ---
+        // (This is just to make the response shorter; the actual file should contain the full functions from the previous working version)
+        function setupZoneManagementListeners(){document.getElementById('draw-btn').addEventListener('click',toggleDrawingMode);document.getElementById('save-btn').addEventListener('click',savePendingZone);document.getElementById('cancel-save-btn').addEventListener('click',cancelSave);document.getElementById('preview-btn').addEventListener('click',()=>{trackingOverlay.style.display='none';videoPlayerZm.style.opacity=1;videoPlayerZm.play();redrawCanvas()});document.getElementById('rename-btn').addEventListener('click',showRenameUI);document.getElementById('confirm-rename-btn').addEventListener('click',confirmRename);document.getElementById('cancel-rename-btn').addEventListener('click',cancelRename);document.getElementById('delete-btn').addEventListener('click',deleteSelectedZone);document.getElementById('zone-select').addEventListener('change',e=>{document.getElementById('rename-btn').disabled=!e.target.value});zoneCanvas.addEventListener('mousedown',handleMouseDown);zoneCanvas.addEventListener('mousemove',handleMouseMove);zoneCanvas.addEventListener('mouseup',handleMouseUp);videoPlayerZm.addEventListener('play',fitCanvasToVideo);window.addEventListener('resize',redrawCanvas)}
+        async function loadZonesFromServer(e){try{const t=await fetch(`/get_zones?username=${currentUsername}&cameraId=${e}`);if(!t.ok)throw new Error("Server error loading zones.");const n=await t.json();n.success&&(savedZones=n.zones.map(e=>({...e.coordinates,label:e.label,id:e.id})),updateZoneDropdown(),redrawCanvas())}catch(e){console.error("Error loading zones:",e)}}
+        async function savePendingZone(){const e=document.getElementById('zone-label-input').value.trim();if(!e||!pendingZone){alert("Please enter a name for the zone.");return}try{const t=await fetch('/save_zone',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:currentUsername,cameraId:'zm_video',label:e,coordinates:pendingZone})});if(!t.ok)throw new Error("Server failed to save the zone.");const n=await t.json();if(n.success){const t={...pendingZone,id:n.id,label:e};savedZones.push(t),pendingZone=null,document.getElementById('zone-label-input').value="",document.getElementById('save-zone-container').style.display='none',updateZoneDropdown(n.id),redrawCanvas()}else alert(`Failed to save zone: ${n.message}`)}catch(e){console.error("Error saving zone:",e),alert("A critical error occurred while saving.")}}
+        async function confirmRename(){const e=document.getElementById('zone-select').value;if(!e)return;const t=document.getElementById('rename-label-input').value.trim();if(!t){alert("Please enter a new name.");return}try{const n=await fetch('/rename_zone',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:e,newLabel:t,username:currentUsername})});if(n.ok){const n=savedZones.find(t=>t.id==e);n&&(n.label=t),updateZoneDropdown(e),redrawCanvas(),cancelRename()}else alert("Failed to rename zone.")}catch(e){console.error("Error renaming zone:",e)}}
+        async function deleteSelectedZone(){const e=document.getElementById('zone-select').value;if(!e){alert("Please select a zone to delete.");return}try{const t=await fetch('/delete_zone',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:e,username:currentUsername})});if(t.ok)savedZones=savedZones.filter(t=>t.id!=e),updateZoneDropdown(),redrawCanvas();else alert("Failed to delete zone.")}catch(e){console.error("Error deleting zone:",e)}}
+        function updateZoneDropdown(e){const t=document.getElementById('zone-select'),n=t.value;t.innerHTML='<option value="">-- Select Zone --</option>',savedZones.forEach(e=>{const n=document.createElement('option');n.value=e.id,n.textContent=e.label,t.appendChild(n)});const o=e||n;o&&(t.value=o),document.getElementById('rename-btn').disabled=!t.value}
+        function redrawCanvas(){const e=zoneCanvas.getContext('2d');fitCanvasToVideo(),e.clearRect(0,0,zoneCanvas.width,zoneCanvas.height),e.strokeStyle="lime",e.lineWidth=2,e.font="bold 16px Arial",e.fillStyle="lime";const t=zoneCanvas.getBoundingClientRect();savedZones.forEach(n=>{const o=n.topLeft.x*t.width,a=n.topLeft.y*t.height,l=(n.bottomRight.x-n.topLeft.x)*t.width,d=(n.bottomRight.y-n.topLeft.y)*t.height;e.strokeRect(o,a,l,d),e.fillText(n.label,o,a-5)})}
+        function fitCanvasToVideo(){const e=videoPlayerZm.getBoundingClientRect();zoneCanvas.width=e.width,zoneCanvas.height=e.height}
+        function getPos(e){const t=zoneCanvas.getBoundingClientRect();return{x:e.clientX-t.left,y:e.clientY-t.top}}
+        function toggleDrawingMode(){isDrawingMode=!isDrawingMode,zoneCanvas.style.cursor=isDrawingMode?"crosshair":"default",document.getElementById('draw-btn').style.backgroundColor=isDrawingMode?"var(--accent-red)":"",document.getElementById('draw-btn').style.color=isDrawingMode?"white":""}
+        function handleMouseDown(e){isDrawingMode&&(isDrawing=!0,startCoords=getPos(e),currentCoords=getPos(e))}
+        function handleMouseMove(e){if(!isDrawing)return;currentCoords=getPos(e);const t=zoneCanvas.getContext('2d');t.clearRect(0,0,zoneCanvas.width,zoneCanvas.height),redrawCanvas(),t.strokeStyle="yellow",t.setLineDash([8,4]),t.strokeRect(startCoords.x,startCoords.y,currentCoords.x-startCoords.x,currentCoords.y-startCoords.y),t.setLineDash([])}
+        function handleMouseUp(e){if(!isDrawing)return;isDrawing=!1;const t=getPos(e);if(Math.abs(t.x-startCoords.x)<10)return void redrawCanvas();const n=videoPlayerZm.getBoundingClientRect();pendingZone={topLeft:{x:Math.min(startCoords.x,t.x)/n.width,y:Math.min(startCoords.y,t.y)/n.height},bottomRight:{x:Math.max(startCoords.x,t.x)/n.width,y:Math.max(startCoords.y,t.y)/n.height}},toggleDrawingMode(),document.getElementById('save-zone-container').style.display='block',document.getElementById('zone-label-input').focus()}
+        function cancelSave(){pendingZone=null,document.getElementById('zone-label-input').value="",document.getElementById('save-zone-container').style.display='none',redrawCanvas()}
+        function showRenameUI(){const e=document.getElementById('zone-select').value;if(!e)return;const t=savedZones.find(t=>t.id==e);t&&(document.getElementById('rename-label-input').value=t.label,document.getElementById('rename-zone-container').style.display='block',document.getElementById('rename-label-input').focus())}
+        function cancelRename(){document.getElementById('rename-label-input').value="",document.getElementById('rename-zone-container').style.display='none'}
+    </script>
+</body>
+</html>
